@@ -123,8 +123,13 @@ class Crystal::Call
     check_extra_named_arguments(call_errors, owner, defs, arg_types, inner_exception)
     check_arguments_already_specified(call_errors, owner, defs, arg_types, inner_exception)
     check_wrong_number_of_arguments(call_errors, owner, defs, def_name, arg_types, named_args_types, inner_exception)
-    check_extra_types_arguments_mismatch(call_errors, owner, defs, def_name, arg_types, named_args_types, inner_exception)
+    
+    # print "check_arguments_type_mismatch\n"
     check_arguments_type_mismatch(call_errors, owner, defs, def_name, arg_types, named_args_types, inner_exception)
+    
+    # print "check_extra_types_arguments_mismatch\n"
+    check_extra_types_arguments_mismatch(call_errors, owner, defs, def_name, arg_types, named_args_types, inner_exception)
+
 
     if args.size == 1 && args.first.type.includes_type?(program.nil)
       owner_trace = args.first.find_owner_trace(program, program.nil)
@@ -267,8 +272,13 @@ class Crystal::Call
     call_errors = call_errors.map &.as(ArgumentsTypeMismatch)
     argument_type_mismatches = call_errors.flat_map(&.errors)
 
+    # print "check_extra_types_arguments_mismatch def_name: ", def_name, " arg_types: ", arg_types, " named_args_types: ", named_args_types, "\n"
+    # pp argument_type_mismatches
+
     argument_type_mismatches.select!(&.extra_types)
     return if argument_type_mismatches.empty?
+
+    # pp argument_type_mismatches
 
     argument_type_mismatches.each do |target_error|
       index_or_name = target_error.index_or_name
@@ -319,6 +329,7 @@ class Crystal::Call
   end
 
   private def raise_argument_type_mismatch(index_or_name, actual_type, expected_types, owner, defs, def_name, arg_types, inner_exception)
+    # print "raise_argument_type_mismatch index_or_name: ", index_or_name, " actual_type: ", actual_type, " expected_types: ", expected_types, "\n"
     arg =
       case index_or_name
       in Int32
@@ -484,7 +495,7 @@ class Crystal::Call
     arg_types.each_with_index do |arg_type, i|
       def_arg = a_def.args[i]?
       next unless def_arg
-
+      # print "arg_types def_arg: ", def_arg, " arg_type: ", arg_type, " match_context: ", match_context, "\n"
       check_argument_type_mismatch(def_arg, i, arg_type, match_context, arguments_type_mismatch)
     end
 
@@ -504,11 +515,14 @@ class Crystal::Call
 
   private def check_argument_type_mismatch(def_arg, index_or_name, arg_type, match_context, arguments_type_mismatch)
     restricted = arg_type.restrict(def_arg, match_context)
-
+    # print typeof(arg_type), "\n"
+    # print typeof(def_arg), "\n"
     arg_type = arg_type.remove_literal
+    # print "index_or_name: ", index_or_name, " def_arg: ", def_arg, " arg_type.remove_literal: ", arg_type, " restricted: ", restricted, "\n"
     return if restricted == arg_type
 
     expected_type = compute_expected_type(def_arg, match_context)
+    # print "expected_type: ", expected_type, "\n"
 
     extra_types =
       if restricted

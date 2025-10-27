@@ -1,0 +1,120 @@
+From: Pedro Demarchi Gomes <e-pedrog@weg.net>
+Date: Fri, 24 Oct 2025 16:59:21 -0300
+Subject: [PATCH] WIP
+
+---
+ bin/crystal                                 |  5 +++--
+ src/compiler/crystal/semantic/call.cr       |  1 +
+ src/compiler/crystal/semantic/call_error.cr | 24 ++++++++++++++++++++-
+ 3 files changed, 27 insertions(+), 3 deletions(-)
+
+diff --git a/bin/crystal b/bin/crystal
+index 5d1475352..b3db63b0c 100755
+--- a/bin/crystal
++++ b/bin/crystal
+@@ -193,10 +193,11 @@ export CRYSTAL_EXEC_PATH
+
+ if [ -x "$CRYSTAL_DIR/${CRYSTAL_BIN}" ]; then
+-  __warning_msg "Using compiled compiler at ${CRYSTAL_DIR#"$PWD/"}/${CRYSTAL_BIN}"
+-  exec "$CRYSTAL_DIR/${CRYSTAL_BIN}" "$@"
++  __warning_msg "Using compiled compiler at ${CRYSTAL_DIR#"$PWD/"}/${CRYSTAL_BIN}"
++  exec gdb "$CRYSTAL_DIR/${CRYSTAL_BIN}" -tui
+ elif (! $PARENT_CRYSTAL_EXISTS); then
+   __error_msg 'You need to have a crystal executable in your path! or set CRYSTAL env variable'
+   exit 1
+ else
+-  exec "$PARENT_CRYSTAL" "$@"
++  echo "$PARENT_CRYSTAL"
++  exec "$PARENT_CRYSTAL" "$@"
+ fi
+
+diff --git a/src/compiler/crystal/semantic/call.cr b/src/compiler/crystal/semantic/call.cr
+index 9b89f6c1e..b0ac92455 100644
+--- a/src/compiler/crystal/semantic/call.cr
++++ b/src/compiler/crystal/semantic/call.cr
+@@ -711,6 +711,7 @@ class Crystal::Call
+     matches = Matches.new([match] of Match, true)
+
+     unless signature.match(previous_item, context)
++      print "lookup_previous_def_matches\n"
+       raise_matches_not_found scope, previous.name, arg_types, named_args_types, matches, with_autocast: with_autocast, number_autocast: !program.has_flag?("no_number_autocast")
+     end
+
+diff --git a/src/compiler/crystal/semantic/call_error.cr b/src/compiler/crystal/semantic/call_error.cr
+index d19be20af..000820ae4 100644
+--- a/src/compiler/crystal/semantic/call_error.cr
++++ b/src/compiler/crystal/semantic/call_error.cr
+@@ -256,11 +256,14 @@ class Crystal::Call
+
+   private def check_wrong_number_of_arguments(call_errors, owner, defs, def_name, arg_types, named_args_types, inner_exception)
+     return unless call_errors.all?(WrongNumberOfArguments)
+-
++    print "check_extra_types_arguments_mismatch\n"
+     raise_matches_not_found_named_args(owner, def_name, defs, arg_types, named_args_types, inner_exception)
+   end
+
+   private def check_extra_types_arguments_mismatch(call_errors, owner, defs, def_name, arg_types, named_args_types, inner_exception)
++    pp call_errors
++    pp named_args_types
++
+     call_errors = call_errors.select(ArgumentsTypeMismatch)
+     return if call_errors.empty?
+@@ -270,13 +273,23 @@ class Crystal::Call
+     argument_type_mismatches.select!(&.extra_types)
+     return if argument_type_mismatches.empty?
++    print "argument_type_mismatches\n"
++    pp argument_type_mismatches
+     argument_type_mismatches.each do |target_error|
+       index_or_name = target_error.index_or_name
++      pp target_error
+       mismatches = argument_type_mismatches.select(&.index_or_name.==(index_or_name))
+       expected_types = mismatches.map(&.expected_type).uniq!
+       actual_type = mismatches.first.actual_type
++      print "expected_types\n"
++      print expected_types
++      print "actual_type\n"
++      print actual_type
+       actual_types =
+         if actual_type.is_a?(UnionType)
+           actual_type.union_types
+@@ -290,6 +303,7 @@ class Crystal::Call
+         expected_types = [target_error.expected_type]
+       end
++      print "check_extra_types_arguments_mismatch\n"
+       raise_argument_type_mismatch(index_or_name, actual_type, expected_types.sort_by!(&.to_s), owner, defs, def_name, arg_types, inner_exception)
+     end
+   end
+@@ -315,6 +329,7 @@ class Crystal::Call
+     expected_types = mismatches.map(&.expected_type).uniq!.sort_by!(&.to_s)
+     actual_type = mismatches.first.actual_type
++    print "check_arguments_type_mismatch\n"
+     raise_argument_type_mismatch(index_or_name, actual_type, expected_types, owner, defs, def_name, arg_types, inner_exception)
+   end
+@@ -485,6 +500,7 @@ class Crystal::Call
+       def_arg = a_def.args[i]?
+       next unless def_arg
++      print "arg_types def_arg: ", def_arg, " arg_type: ", arg_type, " match_context: ", match_context, "\n"
+       check_argument_type_mismatch(def_arg, i, arg_type, match_context, arguments_type_mismatch)
+     end
+@@ -492,6 +508,7 @@ class Crystal::Call
+       def_arg = a_def.args.find &.external_name.==(named_arg.name)
+       next unless def_arg
++      print "named_args_types def_arg: ", def_arg, " named_arg: ", named_arg, "match_context: ", match_context, "\n"
+       check_argument_type_mismatch(def_arg, named_arg.name, named_arg.type, match_context, arguments_type_mismatch)
+     end
+@@ -503,12 +520,17 @@ class Crystal::Call
+   end
+
+   private def check_argument_type_mismatch(def_arg, index_or_name, arg_type, match_context, arguments_type_mismatch)
++    print typeof(arg_type), "\n"
++    print typeof(def_arg), "\n"
+     restricted = arg_type.restrict(def_arg, match_context)
+     arg_type = arg_type.remove_literal
++    print "index_or_name: ", index_or_name, " def_arg: ", def_arg, " arg_type.remove_literal: ", arg_type, " restricted: ", restricted, "\n"
+     return if restricted == arg_type
+     expected_type = compute_expected_type(def_arg, match_context)
++    print "expected_type: ", expected_type, "\n"
+     extra_types =
+       if restricted
+-- 
+2.43.0
